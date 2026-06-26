@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 from google.cloud import storage
 from google.cloud import bigquery
 import functions_framework
+from pathlib import Path
 from google.api_core.exceptions import NotFound, PreconditionFailed
 
 # 1. Alapadatok konfigurációja
@@ -252,94 +253,35 @@ def trigger_sql_transformations(bq_client):
     """
     print("Indul az SQL transzformációs lánc a BigQuery-ben...")
 
-    create_staging_tables = """
-    create or replace table `{PROJECT_ID}.stg_arpadent.clients` as
-    select
-    safe_cast(id as int64) as client_id,
-    safe_cast(doctor_user_id as int64) as doctor_user_id,
-    sex,
-    safe_cast(birthday as date) as birthday,
-    city,
-    country,
-    trim(zip) as zip_code,
-    safe_cast(inserted_ts as datetime) as inserted_ts,
-    safe_cast(updated_ts as datetime) as updated_ts
-    from `{PROJECT_ID}.raw_arpadent.clients_raw`;
+    base_dir = Path(__file__).resolve().parent.parent
+    sql_dir = base_dir / "sql" / "staging"
 
-    create or replace table `{PROJECT_ID}.stg_arpadent.payments` as
-    select
-    safe_cast(id as int64) as id,
-    safe_cast(client_id as int64) as client_id,
-    safe_cast(discount_amount as numeric) as discount_amount,
-    safe_cast(billed_price_sum as numeric) as billed_price_sum,
-    safe_cast(inserted_ts as datetime)        as inserted_ts,
-    safe_cast(payment_storno_ts as datetime)  as payment_storno_ts
-    from `{PROJECT_ID}.raw_arpadent.payments_raw`
-    where billed_price_sum is not null;
-
-    create or replace table `{PROJECT_ID}.stg_arpadent.users` as
-    select
-    safe_cast(id as int64) as id,
-    name,
-    doctor,
-    safe_cast(inserted_ts as datetime) as inserted_ts
-    from `{PROJECT_ID}.raw_arpadent.users_raw`;
-
-    create or replace table `{PROJECT_ID}.stg_arpadent.medrec_details` as
-    select
-    safe_cast(id as int64) as id,
-    safe_cast(paym_id as int64) as paym_id, 
-    safe_cast(client_id as int64) as client_id, 
-    safe_cast(doctor_user_id as int64) as doctor_user_id, 
-    safe_cast(medrec_plan_id as int64) as medrec_plan_id, 
-    safe_cast(medrec_plan_detail_id as int64) as medrec_plan_detail_id, 
-    safe_cast(treatment_medrec_id as int64) as treatment_medrec_id, 
-    name, 
-    safe_cast(payment_price as numeric) as payment_price, 
-    safe_cast(price as numeric) as price,
-    status, 
-    safe_cast(mdet_date as date) as mdet_date,
-    DATETIME( TIMESTAMP_SECONDS(SAFE_CAST(inserted_ts AS INT64)), "Europe/Budapest" ) AS inserted_ts
-    from `{PROJECT_ID}.raw_arpadent.medrec_details_raw`;
-
-    create or replace table `{PROJECT_ID}.stg_arpadent.treatments_medrec` as
-    select
-    safe_cast(id as int64) as id,
-    safe_cast(treatments_medrec_group_id as int64) as treatments_medrec_group_id, 
-    short_name,
-    name
-    from `{PROJECT_ID}.raw_arpadent.treatments_medrec_raw`;
-
-    create or replace table `{PROJECT_ID}.stg_arpadent.scheduler` as
-    select
-    safe_cast(id as int64) as id,
-    safe_cast(room_id as int64) as room_id,
-    safe_cast(client_id as int64) as client_id,
-    safe_cast(user_id as int64) as user_id,
-    safe_cast(datetime_from as datetime) as datetime_from,
-    safe_cast(datetime_to as datetime) as datetime_to,
-    safe_cast(flag_new_client as int64) as flag_new_client,
-    safe_cast(flag_old_client as int64) as flag_old_client,
-    safe_cast(flag_not_come as int64) as flag_not_come,
-    safe_cast(flag_came as int64) as flag_came,
-    safe_cast(flag_inside as int64) as flag_inside,
-    safe_cast(flag_left as int64) as flag_left,
-    safe_cast(flag_treatment as int64) as flag_treatment,
-    treatment_note,
-    safe_cast(last_modified_ts as datetime) as last_modified_ts,
-    safe_cast(update_user_id as int64) as update_user_id,
-    safe_cast(inserted_ts as datetime) as inserted_ts,
-    safe_cast(inserted_by_user_id as int64) as inserted_by_user_id,
-    safe_cast(cancelled_ts as datetime) as cancelled_ts,
-    safe_cast(cancelled_doctor_ts as datetime) as cancelled_doctor_ts
-    from `{PROJECT_ID}.raw_arpadent.scheduler_raw`;
-    """
+    sql_files = [
+        "01_create_clients.sql",
+        "02_create_payments.sql",
+        "03_create_users.sql",
+        "04_create_medrec_details.sql",
+        "05_create_treatments_medrec.sql",
+        "06_create_scheduler.sql",
+    ]
 
     try:
-        query_job = bq_client.query(create_staging_tables)
-        query_job.result()
-        print("[SIKER] Az SQL transzformációk sikeresen lefutottak! A Looker Studio adatai frissültek.")
+        for sql_file in sql_files:
+            sql_path = sql_dir / sql_file
+
+            print(f"Futtatás indul: {sql_path}")
+
+            sql = sql_path.read_text(encoding="utf-8")
+            sql = sql.replace("@@PROJECT_ID@@", PROJECT_ID)
+
+            query_job = bq_client.query(sql)
+            query_job.result()
+
+            print(f"[SIKER] Lefutott: {sql_file}")
+
+        print("[SIKER] Az összes SQL transzformáció sikeresen lefutott! A Looker Studio adatai frissültek.")
         return True
+
     except Exception as e:
         print(f"[HIBA] Az SQL transzformációk futtatása meghiúsult: {e}")
         return False

@@ -5,7 +5,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app/ ./app/
-COPY sql/ ./sql/
+COPY . .
 
-CMD ["python", "-m", "app.main"]
+CMD ["functions-framework", "--target=process_arpadent_zip", "--signature-type=cloudevent", "--port=8080"]
