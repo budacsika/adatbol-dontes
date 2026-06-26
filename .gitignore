@@ -216,3 +216,34 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local environment
+.env
+*.env
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# Secrets / credentials
+credentials.json
+service-account*.json
+*.key
+*.pem
+
+# Local data / client exports
+data/
+raw/
+exports/
+input/
+output/
+*.csv
+*.xlsx
+*.xls
+*.xml
+*.jsonl
+
+# Python cache
+__pycache__/
+*.pyc
