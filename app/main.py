@@ -8,14 +8,9 @@ from google.cloud import bigquery
 import functions_framework
 from google.api_core.exceptions import NotFound, PreconditionFailed
 
-
 # 1. Alapadatok konfigurációja
 PROJECT_ID = os.environ["GCP_PROJECT_ID"]
 DATASET_ID = os.environ["BIGQUERY_DATASET_ID"]
-
-PROJECT_ID = "medcon-prod"
-DATASET_ID = "raw_arpadent"
-
 
 # A feldolgozandó XML fájlok pontos listája a ZIP-en belüli fájlnevek alapján
 CSV_FILES_MAPPING = {
@@ -28,7 +23,6 @@ CSV_FILES_MAPPING = {
     "treatments_medrec_prices.xml": "treatments_medrec_prices_raw",
     "treatments_medrec_groups.xml": "treatments_medrec_groups_raw"
 }
-
 
 # Arpadent XML névterek definíciója
 NAMESPACES = {
