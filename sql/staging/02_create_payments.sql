@@ -1,4 +1,4 @@
-create or replace table `@PROJECT_ID@@.stg_arpadent.payments` as
+create or replace table `@@PROJECT_ID@@.stg_arpadent.payments` as
 select
     safe_cast(id as int64) as id,
     safe_cast(client_id as int64) as client_id,
