@@ -263,13 +263,14 @@ def run_dataform_workflow() -> bool:
 
         print(f"Dataform repository_path: {repository_path}")
 
+        print("CompilationResult indul...")
         compilation_result = client.create_compilation_result(
             parent=repository_path,
             compilation_result=dataform_v1beta1.CompilationResult(
                 git_commitish="main"
             ),
         )
-
+        print("WorkflowInvocation indul...")
         workflow_invocation = client.create_workflow_invocation(
             parent=repository_path,
             workflow_invocation=dataform_v1beta1.WorkflowInvocation(
