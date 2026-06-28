@@ -16,6 +16,7 @@ DATASET_ID = os.environ["BIGQUERY_DATASET_ID"]
 REPOSITORY_ID = os.environ["REPOSITORY_ID"]
 REGION = os.environ["REGION"]
 DATAFORM_GIT_COMMITISH = os.environ["DATAFORM_GIT_COMMITISH"]
+DATAFORM_SERVICE_ACCOUNT = os.environ["DATAFORM_SERVICE_ACCOUNT"]
 
 # A feldolgozandó XML fájlok pontos listája a ZIP-en belüli fájlnevek alapján
 CSV_FILES_MAPPING = {
@@ -267,7 +268,9 @@ def run_dataform_workflow() -> bool:
             parent=repository_path,
             workflow_invocation=dataform_v1beta1.WorkflowInvocation(
                 compilation_result=compilation_result.name,
-                invocation_config=dataform_v1beta1.InvocationConfig(),
+                invocation_config=dataform_v1beta1.InvocationConfig(
+                    service_account=DATAFORM_SERVICE_ACCOUNT
+                ),
             ),
         )
 
