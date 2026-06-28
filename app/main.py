@@ -285,5 +285,6 @@ def run_dataform_workflow() -> bool:
         return True
 
     except Exception as e:
-        print(f"[HIBA] A Dataform workflow indítása meghiúsult: {e}")
+        print(f"[HIBA] A Dataform workflow indítása meghiúsult: {type(e)}")
+        print(f"[HIBA] Részletes hiba: {repr(e)}")
         return False
