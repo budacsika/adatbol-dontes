@@ -211,7 +211,7 @@ def process_arpadent_zip(cloud_event):
 
         # Ha sikerült legalább egy raw táblát frissíteni, futtatjuk a staging transzformációkat
         if processed_tables_count > 0:
-            transformation_success = run_dataform_workflow(PROJECT_ID, REGION, REPOSITORY_ID)
+            transformation_success = run_dataform_workflow()
 
             if transformation_success:
                 mark_as_processed(bq_client, bucket_name, file_name)
