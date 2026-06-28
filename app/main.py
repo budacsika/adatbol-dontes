@@ -252,10 +252,16 @@ def parse_arpadent_xml(xml_content, filename):
 
 def run_dataform_workflow() -> bool:
     print("Indul a Dataform workflow...")
+    print(f"PROJECT_ID={PROJECT_ID}")
+    print(f"REGION={REGION}")
+    print(f"REPOSITORY_ID={REPOSITORY_ID}")
+    print(f"DATAFORM_SERVICE_ACCOUNT={DATAFORM_SERVICE_ACCOUNT}")
 
     try:
         client = dataform_v1beta1.DataformClient()
         repository_path = client.repository_path(PROJECT_ID, REGION, REPOSITORY_ID)
+
+        print(f"Dataform repository_path: {repository_path}")
 
         compilation_result = client.create_compilation_result(
             parent=repository_path,
