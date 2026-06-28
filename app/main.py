@@ -211,7 +211,7 @@ def process_arpadent_zip(cloud_event):
 
         # Ha sikerült legalább egy raw táblát frissíteni, futtatjuk a staging transzformációkat
         if processed_tables_count > 0:
-            transformation_success = run_dataform_workflow(tags=["staging"])
+            transformation_success = run_dataform_workflow(PROJECT_ID, REGION, REPOSITORY_ID)
 
             if transformation_success:
                 mark_as_processed(bq_client, bucket_name, file_name)
@@ -249,89 +249,29 @@ def parse_arpadent_xml(xml_content, filename):
         print(f"Általános parsolási hiba ennél a fájlnál: {filename}: {e}")
         return None
 
-# ezt kellene törölni
-def trigger_sql_transformations(bq_client):
-    """
-    Elindítja a BigQuery transzformációs folyamatot:
-    raw_arpadent -> stg_arpadent
-    """
-    print("Indul az SQL transzformációs lánc a BigQuery-ben...")
-
-    base_dir = Path(__file__).resolve().parent.parent
-    sql_dir = base_dir / "sql" / "staging"
-
-    sql_files = [
-        "01_create_clients.sql",
-        "02_create_payments.sql",
-        "03_create_users.sql",
-        "04_create_medrec_details.sql",
-        "05_create_treatments_medrec.sql",
-        "06_create_scheduler.sql",
-    ]
+def run_dataform_workflow() -> bool:
+    print("Indul a Dataform workflow...")
 
     try:
-        for sql_file in sql_files:
-            sql_path = sql_dir / sql_file
-
-            print(f"Futtatás indul: {sql_path}")
-
-            sql = sql_path.read_text(encoding="utf-8")
-            sql = sql.replace("@@PROJECT_ID@@", PROJECT_ID)
-
-            query_job = bq_client.query(sql)
-            query_job.result()
-
-            print(f"[SIKER] Lefutott: {sql_file}")
-
-        print("[SIKER] Az összes SQL transzformáció sikeresen lefutott! A Looker Studio adatai frissültek.")
-        return True
-
-    except Exception as e:
-        print(f"[HIBA] Az SQL transzformációk futtatása meghiúsult: {e}")
-        return False
-
-def run_dataform_workflow(project_id: str, region: str, repository_id: str):
-    """
-    Elindít egy Dataform workflow-t a megadott repository-ban.
-    """
-    try:
-        # Dataform kliens inicializálása
         client = dataform_v1beta1.DataformClient()
+        repository_path = client.repository_path(PROJECT_ID, REGION, REPOSITORY_ID)
 
-        # Repository elérési útvonalának összeállítása
-        repository_path = client.repository_path(project_id, region, repository_id)
-
-        # Workflow futtatásának kérése
-        # Ez a kérés elindítja az összes actiont a repository-ban.
-        # Ha csak egy részhalmazt szeretnél futtatni, használhatod a `tags` paramétert.
-        # Például: invocation_config = dataform_v1beta1.InvocationConfig(included_tags=["staging"])
-        invocation_config = dataform_v1beta1.InvocationConfig()
-
-        # Workflow elindítása
-        workflow_invocation = dataform_v1beta1.WorkflowInvocation(
-            compilation_result=f"{repository_path}/compilationResults/default", # 'default' compilation result-ot használunk
-            invocation_config=invocation_config,
-        )
-
-        print("Dataform workflow indítása...")
-        response = client.create_workflow_invocation(
+        compilation_result = client.create_compilation_result(
             parent=repository_path,
-            workflow_invocation=workflow_invocation,
+            compilation_result=dataform_v1beta1.CompilationResult(
+                git_commitish="main"
+            ),
         )
 
-        print(f"[SIKER] A Dataform workflow sikeresen elindult. Workflow ID: {response.name}")
-        print("A futás állapotát a Google Cloud Console-ban követheted a Dataform oldalon.")
-        
-        # A workflow futása aszinkron. Ha meg szeretnéd várni a végét,
-        # akkor a response.name alapján lekérdezheted a státuszát egy ciklusban.
-        # Példa a státusz lekérdezésére:
-        # invocation_status = client.get_workflow_invocation(name=response.name)
-        # while invocation_status.state == dataform_v1beta1.WorkflowInvocation.State.RUNNING:
-        #     print("A workflow még fut...")
-        #     time.sleep(10)
-        #     invocation_status = client.get_workflow_invocation(name=response.name)
-        # print(f"A workflow befejeződött, státusz: {invocation_status.state.name}")
+        workflow_invocation = client.create_workflow_invocation(
+            parent=repository_path,
+            workflow_invocation=dataform_v1beta1.WorkflowInvocation(
+                compilation_result=compilation_result.name,
+                invocation_config=dataform_v1beta1.InvocationConfig(),
+            ),
+        )
 
+        print(f"[SIKER] Dataform workflow elindítva: {workflow_invocation.name}")
         return True
 
     except Exception as e:
