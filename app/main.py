@@ -5,6 +5,7 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 from google.cloud import storage
 from google.cloud import bigquery
+from google.cloud import dataform_v1beta1
 import functions_framework
 from pathlib import Path
 from google.api_core.exceptions import NotFound, PreconditionFailed
@@ -12,6 +13,9 @@ from google.api_core.exceptions import NotFound, PreconditionFailed
 # 1. Alapadatok konfigurációja
 PROJECT_ID = os.environ["GCP_PROJECT_ID"]
 DATASET_ID = os.environ["BIGQUERY_DATASET_ID"]
+REPOSITORY_ID = os.environ["REPOSITORY_ID"]
+REGION = os.environ["REGION"]
+DATAFORM_GIT_COMMITISH = os.environ["DATAFORM_GIT_COMMITISH"]
 
 # A feldolgozandó XML fájlok pontos listája a ZIP-en belüli fájlnevek alapján
 CSV_FILES_MAPPING = {
@@ -207,7 +211,7 @@ def process_arpadent_zip(cloud_event):
 
         # Ha sikerült legalább egy raw táblát frissíteni, futtatjuk a staging transzformációkat
         if processed_tables_count > 0:
-            transformation_success = trigger_sql_transformations(bq_client)
+            transformation_success = run_dataform_workflow(tags=["staging"])
 
             if transformation_success:
                 mark_as_processed(bq_client, bucket_name, file_name)
@@ -245,7 +249,7 @@ def parse_arpadent_xml(xml_content, filename):
         print(f"Általános parsolási hiba ennél a fájlnál: {filename}: {e}")
         return None
 
-
+# ezt kellene törölni
 def trigger_sql_transformations(bq_client):
     """
     Elindítja a BigQuery transzformációs folyamatot:
@@ -284,4 +288,52 @@ def trigger_sql_transformations(bq_client):
 
     except Exception as e:
         print(f"[HIBA] Az SQL transzformációk futtatása meghiúsult: {e}")
+        return False
+
+def run_dataform_workflow(project_id: str, region: str, repository_id: str):
+    """
+    Elindít egy Dataform workflow-t a megadott repository-ban.
+    """
+    try:
+        # Dataform kliens inicializálása
+        client = dataform_v1beta1.DataformClient()
+
+        # Repository elérési útvonalának összeállítása
+        repository_path = client.repository_path(project_id, region, repository_id)
+
+        # Workflow futtatásának kérése
+        # Ez a kérés elindítja az összes actiont a repository-ban.
+        # Ha csak egy részhalmazt szeretnél futtatni, használhatod a `tags` paramétert.
+        # Például: invocation_config = dataform_v1beta1.InvocationConfig(included_tags=["staging"])
+        invocation_config = dataform_v1beta1.InvocationConfig()
+
+        # Workflow elindítása
+        workflow_invocation = dataform_v1beta1.WorkflowInvocation(
+            compilation_result=f"{repository_path}/compilationResults/default", # 'default' compilation result-ot használunk
+            invocation_config=invocation_config,
+        )
+
+        print("Dataform workflow indítása...")
+        response = client.create_workflow_invocation(
+            parent=repository_path,
+            workflow_invocation=workflow_invocation,
+        )
+
+        print(f"[SIKER] A Dataform workflow sikeresen elindult. Workflow ID: {response.name}")
+        print("A futás állapotát a Google Cloud Console-ban követheted a Dataform oldalon.")
+        
+        # A workflow futása aszinkron. Ha meg szeretnéd várni a végét,
+        # akkor a response.name alapján lekérdezheted a státuszát egy ciklusban.
+        # Példa a státusz lekérdezésére:
+        # invocation_status = client.get_workflow_invocation(name=response.name)
+        # while invocation_status.state == dataform_v1beta1.WorkflowInvocation.State.RUNNING:
+        #     print("A workflow még fut...")
+        #     time.sleep(10)
+        #     invocation_status = client.get_workflow_invocation(name=response.name)
+        # print(f"A workflow befejeződött, státusz: {invocation_status.state.name}")
+
+        return True
+
+    except Exception as e:
+        print(f"[HIBA] A Dataform workflow indítása meghiúsult: {e}")
         return False
